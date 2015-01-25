@@ -15,8 +15,17 @@ Text data used in training is expected to be in the following files:
 - data/train/fr.txt
 - data/train/it.txt
 - data/train/pt.txt
-- data/train/ro.txt  
-  
+- data/train/ro.txt
+
+Text files used in testing are named similarly:
+
+- data/test/ca.txt
+- data/test/es.txt
+- data/test/fr.txt
+- data/test/it.txt
+- data/test/pt.txt
+- data/test/ro.txt  
+
 The source code as well as data files can be found here:
 
 - https://github.com/nkrot/langdetector
