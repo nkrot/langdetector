@@ -40,9 +40,9 @@ Train and test data was extracted from tatoeba datasets (http://tatoeba.org/eng/
 
 ### TODO:
 
- 1) it would be good to know what languages are confused most often
- 2) train and test on longer sentences
- 3) what is the quality if
-     a) training is accomplished on short sentences and testing on the long ones
-     b) viceversa
+ 1. it would be good to know what languages are confused most often
+ 2. train and test on longer sentences
+ 3. what is the quality if:
+     a. training is accomplished on short sentences and testing on the long ones
+     b. viceversa
 
