@@ -94,11 +94,9 @@ public class LangDetector {
     }
 
     public void buildModel() throws IOException {
-        System.out.println("Building the model...");
-
         collectTrainingEvents();
         EventStream stream = new ListEventStream(trainingEvents);
-        model = GIS.trainModel(stream); /* hello */
+        model = GIS.trainModel(stream);
     }
 
     /*
@@ -123,18 +121,14 @@ public class LangDetector {
 
         for (String langCode : langCodes) {
             corpusFilePath = trainDataDir + "/" + langCode + ".txt";
-            System.out.println("Language=" + langCode + "; File=" + corpusFilePath);
 
             lineStream = new PlainTextByLineStream(new FileInputStream(corpusFilePath), charset);
 
             while ((line = lineStream.read()) != null) {
                 context = collectContext(line);
-
                 Event event = new Event(langCode, context);
                 trainingEvents.add(event);
             }
-
-            System.out.println("Done");
         }
     }
 
