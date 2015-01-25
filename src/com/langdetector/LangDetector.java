@@ -1,3 +1,47 @@
+/*
+ * A demo of a language identification tool.
+ * 
+ * The implemented approach builds Maximum Entropy model based on character 1-, 2- and 3-grams.
+ * MaxentModel from OpenNLP library (http://opennlp.apache.org/) is used.
+ * 
+ * The demo is hardcoded to run for the following languages:
+ *   Catalan, Spanish, French, Italian, Portuguese, Romanian
+ *
+ * Text data used in training is expected to be in the following files:
+ *    data/train/ca.txt
+ *    data/train/es.txt
+ *    data/train/fr.txt
+ *    data/train/it.txt
+ *    data/train/pt.txt
+ *    data/train/ro.txt  
+ *   
+ * The source code as well as data files can be found here:
+ *   https://github.com/nkrot/langdetector
+ *   git@github.com:nkrot/langdetector.git
+ *
+ * Train and test data was extracted from tatoeba datasets (http://tatoeba.org/eng/downloads)
+ *   training set: 4000 entries for each language 
+ *   testing set:  1000 entries for each language (except Catalan - 905)
+ *   
+ * Results
+ * =======
+ *   Language | match | mismatch | precision, % |
+ *    ALL     | 4929  |   976    |  83
+ *     ca     |  688  |   217    |  76
+ *     es     |  770  |   230    |  77
+ *     fr     |  878  |   122    |  87
+ *     it     |  859  |   141    |  85
+ *     pt     |  834  |   166    |  83
+ *     ro     |  900  |   100    |  90
+ *     
+ * TODO:
+ *  1) it would be good to know what languages are confused most often
+ *  2) train and test on longer sentences
+ *  3) what is the quality if
+ *      a) training is accomplished on short sentences and testing on the long ones
+ *      b) viceversa
+ */
+
 package com.langdetector;
 
 import java.io.FileInputStream;
@@ -20,9 +64,11 @@ import opennlp.tools.util.StringList;
 
 public class LangDetector {
 
-    static String topDir = "/home/krot/projects/languagedetector/";
-    static String trainDataDir = topDir.concat("data/train/");
-    static String modelDir = topDir.concat("models/");
+    static String trainDataDir = "data/train/";
+    static String testDataDir = "data/test/";
+
+    // Catalan, Spanish, French, Italian, Portuguese, Romanian
+    static String[] langCodes = { "ca", "es", "fr", "it", "pt", "ro" };
 
     static int MIN_NGRAM = 1;
     static int MAX_NGRAM = 3;
@@ -35,7 +81,8 @@ public class LangDetector {
 
         ld.buildModel();
 
-        ld.runEmbeddedTests();
+        //ld.runEmbeddedTests();
+        ld.runTests();
     }
 
     public void buildModel() throws IOException {
@@ -46,11 +93,21 @@ public class LangDetector {
         model = GIS.trainModel(stream); /* hello */
     }
 
+    /*
+     * This method expects to find a number of text files in the directory <trainDataDir> 
+     * and use them for training. All file names are hardcoded and should follow the pattern:
+     *    <trainDataDir>/<langCode>.txt
+     * namely,
+     *    data/train/ca.txt
+     *    data/train/es.txt
+     *    data/train/fr.txt
+     *    data/train/it.txt
+     *    data/train/pt.txt
+     *    data/train/ro.txt
+     */
     public void collectTrainingEvents() throws IOException {
 
-        String[] langCodes = { "ca", "es", "fr", "it", "pt", "ro" };
         Charset charset = Charset.forName("UTF-8");
-
         String corpusFilePath;
         ObjectStream<String> lineStream;
         String line;
@@ -97,9 +154,31 @@ public class LangDetector {
         return context;
     }
 
-    /*
-     * Testing
-     */
+    /***************************************************************
+     * 
+     * Testing :)
+     * 
+     ***************************************************************/
+
+    public void runTests() throws IOException {
+
+        Charset charset = Charset.forName("UTF-8");
+        String corpusFilePath;
+        ObjectStream<String> lineStream;
+        String line;
+        List<TestCase> testcases = new ArrayList<TestCase>();
+
+        for (String langCode : langCodes) {
+            corpusFilePath = testDataDir + "/" + langCode + ".txt";
+            lineStream = new PlainTextByLineStream(new FileInputStream(corpusFilePath), charset);
+
+            while ((line = lineStream.read()) != null) {
+                testcases.add(new TestCase(langCode, line));
+            }
+        }
+
+        checkTestcases(testcases);
+    }
 
     public void runEmbeddedTests() {
         System.out.println("Testing...");
@@ -119,6 +198,10 @@ public class LangDetector {
                 new TestCase("ro", "Anul trecut ne-am dus la Londra.")
         });
 
+        checkTestcases(testcases);
+    }
+
+    public void checkTestcases(List<TestCase> testcases) {
         String[] context;
         int[] counts = { 0, 0 };
 
@@ -128,28 +211,62 @@ public class LangDetector {
             context = collectContext(tc.input);
 
             double[] outcomeProbs = model.eval(context);
-            String outcome = model.getBestOutcome(outcomeProbs);
+            tc.setActual(model.getBestOutcome(outcomeProbs));
 
-            if (outcome.equals(tc.gold)) {
-                System.out.println("MATCH: " + outcome);
+            if (tc.isSuccessful()) {
+                System.out.println("MATCH: " + tc.actual);
                 counts[1]++;
             } else {
-                System.out.println("MISMATCH: expected " + tc.gold + " but was " + outcome);
+                System.out.println("MISMATCH: expected " + tc.expected + " but was " + tc.actual);
                 counts[0]++;
             }
         }
 
-        System.out.println("Tests succeeded/failed: " + counts[1] + "/" + counts[0]);
+        // compute quality figures across all languages
+        System.out.println("Total succeeded/failed: " + counts[1] + "/" + counts[0] +
+                " (precision=" + precision(counts) + "%)");
+
+        // compute quality figures for each language
+        int i = 0;
+        for (String langCode : langCodes) {
+            counts[0] = 0;
+            counts[1] = 0;
+            for (TestCase tc : testcases) {
+                if (tc.expected.equals(langCode)) {
+                    i = tc.isSuccessful() ? 1 : 0;
+                    counts[i]++;
+                }
+            }
+            System.out.println("Language=" + langCode + ", succeeded/failed: " +
+                    counts[1] + "/" + counts[0] + " (precision=" + precision(counts) + "%)");
+        }
+    }
+
+    public double precision(int[] counts) {
+        return counts[1] * 100 / (counts[0] + counts[1]); /* w/o rounding */
     }
 
     public class TestCase {
-        String gold;
-        String input;
+        public String input;
+        public String expected;
+        public String actual;
 
-        public TestCase(String _gold, String _input) {
-            gold = _gold;
+        public TestCase(String _expected, String _input) {
+            expected = _expected;
             input = _input;
+            actual = null;
         }
 
+        public void setActual(String val) {
+            actual = val;
+        }
+
+        public boolean isSuccessful() {
+            return expected.equals(actual);
+        }
+
+        public boolean isFailed() {
+            return !isSuccessful();
+        }
     }
 }
